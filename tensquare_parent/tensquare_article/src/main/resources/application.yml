@@ -4,11 +4,16 @@ spring:
   application:
     name: tensquare-article #服务名称
   datasource: # 数据库连接四大属性
-#    driver-class-name: com.mysql.jdbc.Driver
-    driver-class-name: com.mysql.cj.jdbc.Driver
+    driver-class-name: com.mysql.jdbc.Driver
     url: jdbc:mysql://192.168.200.128:3306/tensquare_article?characterEncoding=utf-8
     username: root
     password: root
+  data:
+    mongodb:
+      host: 192.168.200.128
+      database: commentdb
+  redis:
+    host: 192.168.200.128
 # Mybatis-Plus 配置
 mybatis-plus:
 #  mapper-locations: classpath:/mapper/*Mapper.xml

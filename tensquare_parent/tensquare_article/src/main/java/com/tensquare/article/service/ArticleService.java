@@ -27,8 +27,6 @@ public class ArticleService {
         return articleDao.selectList(null);
     }
 
-
-
     public Article findById(String articleId) {
         return articleDao.selectById(articleId);
     }
