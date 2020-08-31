@@ -5,7 +5,6 @@ import org.springframework.data.annotation.Id;
 import java.io.Serializable;
 import java.util.Date;
 
-
 public class Comment implements Serializable {
     @Id
     private String _id;

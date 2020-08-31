@@ -8,7 +8,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.web.bind.annotation.*;
 
-import java.io.Serializable;
 import java.util.List;
 
 @RestController
@@ -50,7 +49,6 @@ public class CommentController {
         return new Result(false, StatusCode.REPERROR, "不能重复点赞");
 
     }
-
 
     //GET /comment/article/{articleId} 根据文章id查询文章评论
     @RequestMapping(value = "article/{articleId}", method = RequestMethod.GET)

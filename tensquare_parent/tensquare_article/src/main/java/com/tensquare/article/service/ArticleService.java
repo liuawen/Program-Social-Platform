@@ -2,9 +2,12 @@ package com.tensquare.article.service;
 
 import com.baomidou.mybatisplus.mapper.EntityWrapper;
 import com.baomidou.mybatisplus.plugins.Page;
+import com.tensquare.article.client.NoticeClient;
 import com.tensquare.article.dao.ArticleDao;
 import com.tensquare.article.pojo.Article;
+import com.tensquare.article.pojo.Notice;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import util.IdWorker;
 
@@ -20,7 +23,13 @@ public class ArticleService {
     private ArticleDao articleDao;
 
     @Autowired
+    private NoticeClient noticeClient;
+
+    @Autowired
     private IdWorker idWorker;
+
+    @Autowired
+    private RedisTemplate redisTemplate;
 
     public List<Article> findAll() {
         Article article = articleDao.selectById(1);
@@ -32,6 +41,10 @@ public class ArticleService {
     }
 
     public void save(Article article) {
+        //TODO: 使用jwt鉴权获取当前用户的信息，用户id，也就是文章作者id
+        String userId = "3";
+        article.setUserid(userId);
+
         //使用分布式id生成器
         String id = idWorker.nextId() + "";
         article.setId(id);
@@ -43,6 +56,37 @@ public class ArticleService {
 
         //新增
         articleDao.insert(article);
+
+        //新增文章后，创建消息，通知给订阅者
+
+
+        //获取订阅者信息
+        //存放作者订阅者信息的集合key，里面存放订阅者id
+        String authorKey = "article_author_" + userId;
+        Set<String> set = redisTemplate.boundSetOps(authorKey).members();
+
+        // 给订阅者创建消息通知
+        for (String uid : set) {
+            // 创建消息对象
+            Notice notice = new Notice();
+
+            // 接收消息用户的ID
+            notice.setReceiverId(uid);
+            // 进行操作用户的ID
+            notice.setOperatorId(userId);
+            // 操作类型（评论，点赞等）
+            notice.setAction("publish");
+            // 被操作的对象，例如文章，评论等
+            notice.setTargetType("article");
+            // 被操作对象的id，例如文章的id，评论的id'
+            notice.setTargetId(id);
+            // 通知类型
+            notice.setType("sys");
+
+            noticeClient.save(notice);
+        }
+
+
     }
 
     public void updateById(Article article) {
@@ -86,5 +130,66 @@ public class ArticleService {
 
         //返回
         return pageData;
+    }
+
+    public Boolean subscribe(String articleId, String userId) {
+        //根据文章id查询文章作者id
+        String authorId = articleDao.selectById(articleId).getUserid();
+
+        //存放用户订阅信息的集合key，里面存放作者id
+        String userKey = "article_subscribe_" + userId;
+        //存放作者订阅者信息的集合key，里面存放订阅者id
+        String authorKey = "article_author_" + authorId;
+
+        //查询用户的订阅关系，是否有订阅该作者
+        Boolean flag = redisTemplate.boundSetOps(userKey).isMember(authorId);
+
+        if (flag == true) {
+            //如果订阅作者，就取消订阅
+            //在用户订阅信息的集合中，删除作者
+            redisTemplate.boundSetOps(userKey).remove(authorId);
+            //作者订阅者信息的集合中，删除订阅者
+            redisTemplate.boundSetOps(authorKey).remove(userId);
+
+            //返回false
+            return false;
+
+        } else {
+            //如果没有订阅作者，就进行订阅
+            //在用户订阅信息中，添加订阅的作者
+            redisTemplate.boundSetOps(userKey).add(authorId);
+            //在作者订阅者信息中，添加订阅者
+            redisTemplate.boundSetOps(authorKey).add(userId);
+
+            //返回true
+            return true;
+        }
+
+
+    }
+
+    //文章点赞
+    public void thumpup(String articleId, String userId) {
+        Article article = articleDao.selectById(articleId);
+        article.setThumbup(article.getThumbup() + 1);
+        articleDao.updateById(article);
+
+        //点赞成功后，需要发送消息给文章作者（点对点消息）
+        Notice notice = new Notice();
+        // 接收消息用户的ID
+        notice.setReceiverId(article.getUserid());
+        // 进行操作用户的ID
+        notice.setOperatorId(userId);
+        // 操作类型（评论，点赞等）
+        notice.setAction("publish");
+        // 被操作的对象，例如文章，评论等
+        notice.setTargetType("article");
+        // 被操作对象的id，例如文章的id，评论的id'
+        notice.setTargetId(articleId);
+        // 通知类型
+        notice.setType("user");
+
+        //保存消息
+        noticeClient.save(notice);
     }
 }
